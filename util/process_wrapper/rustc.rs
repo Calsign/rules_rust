@@ -73,7 +73,9 @@ pub(crate) fn process_json(line: String, error_format: ErrorFormat) -> LineOutpu
         )
     });
     match parsed.try_into() {
-        Ok(RustcMessage::Message(rendered)) => output_based_on_error_format(line, rendered, error_format),
+        Ok(RustcMessage::Message(rendered)) => {
+            output_based_on_error_format(line, rendered, error_format)
+        }
         _ => LineOutput::Skip,
     }
 }
@@ -100,7 +102,9 @@ pub(crate) fn stop_on_rmeta_completion(
             *kill = true;
             LineOutput::Terminate
         }
-        Ok(RustcMessage::Message(rendered)) => output_based_on_error_format(line, rendered, error_format),
+        Ok(RustcMessage::Message(rendered)) => {
+            output_based_on_error_format(line, rendered, error_format)
+        }
         _ => LineOutput::Skip,
     }
 }

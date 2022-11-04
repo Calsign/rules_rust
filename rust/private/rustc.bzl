@@ -861,6 +861,12 @@ def construct_arguments(
     if build_metadata:
         # Configure process_wrapper to terminate rustc when metadata are emitted
         process_wrapper_flags.add("--rustc-quit-on-rmeta", "true")
+        if crate_info.rust_metadata_rustc_output:
+            process_wrapper_flags.add("--output-file", crate_info.rust_metadata_rustc_output.path)
+    else:
+        if crate_info.rust_lib_rustc_output:
+            process_wrapper_flags.add("--output-file", crate_info.rust_lib_rustc_output.path)
+
 
     rustc_flags.add("--error-format=" + error_format)
 
@@ -1029,6 +1035,8 @@ def rustc_compile_action(
             - (DefaultInfo): The output file for this crate, and its runfiles.
     """
     build_metadata = getattr(crate_info, "metadata", None)
+    rust_lib_rustc_output = getattr(crate_info, "rust_lib_rustc_output", None)
+    rust_metadata_rustc_output = getattr(crate_info, "rust_metadata_rustc_output", None)
 
     cc_toolchain, feature_configuration = find_cc_toolchain(ctx)
 
@@ -1167,6 +1175,8 @@ def rustc_compile_action(
 
     # The action might generate extra output that we don't want to include in the `DefaultInfo` files.
     action_outputs = list(outputs)
+    if rust_lib_rustc_output:
+        action_outputs.append(rust_lib_rustc_output)
 
     # Rustc generates a pdb file (on Windows) or a dsym folder (on macos) so provide it in an output group for crate
     # types that benefit from having debug information in a separate file.
@@ -1200,7 +1210,7 @@ def rustc_compile_action(
             ctx.actions.run(
                 executable = ctx.executable._process_wrapper,
                 inputs = compile_inputs,
-                outputs = [build_metadata],
+                outputs = [build_metadata, rust_metadata_rustc_output],
                 env = env,
                 arguments = args_metadata.all,
                 mnemonic = "RustcMetadata",
@@ -1318,12 +1328,23 @@ def rustc_compile_action(
 
     if toolchain.target_arch != "wasm32":
         providers += establish_cc_info(ctx, attr, crate_info, toolchain, cc_toolchain, feature_configuration, interface_library)
+
+    output_group_info = {}
+
     if pdb_file:
-        providers.append(OutputGroupInfo(pdb_file = depset([pdb_file])))
+        output_group_info["pdb_file"] = depset([pdb_file])
     if dsym_folder:
-        providers.append(OutputGroupInfo(dsym_folder = depset([dsym_folder])))
+        output_group_info["dsym_folder"] = depset([dsym_folder])
     if build_metadata:
-        providers.append(OutputGroupInfo(build_metadata = depset([build_metadata])))
+        output_group_info["build_metadata"] = depset([build_metadata])
+    if build_metadata:
+        output_group_info["build_metadata"] = depset([build_metadata])
+        output_group_info["rust_metadata_rustc_output"] = depset([rust_metadata_rustc_output])
+    if rust_lib_rustc_output:
+        output_group_info["rust_lib_rustc_output"] = depset([rust_lib_rustc_output])
+
+    if output_group_info:
+        providers.append(OutputGroupInfo(**output_group_info))
 
     return providers
 
