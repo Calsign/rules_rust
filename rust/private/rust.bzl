@@ -64,9 +64,8 @@ def _assert_correct_dep_mapping(ctx):
                 ),
             )
 
-
 def _rustc_output_name(name):
-  return name + ".rustc-output"
+    return name + ".rustc-output"
 
 def _determine_lib_name(name, crate_type, toolchain, lib_hash = None):
     """See https://github.com/bazelbuild/rules_rust/issues/405
@@ -282,7 +281,8 @@ def _rust_library_common(ctx, crate_type):
 
     rust_lib = ctx.actions.declare_file(rust_lib_name)
     rust_lib_build_output = None
-    if ctx.attr._process_wrapper:
+    output_diagnostics = ctx.attr._output_diagnostics
+    if ctx.attr._process_wrapper and output_diagnostics:
         rust_lib_build_output = ctx.actions.declare_file(_rustc_output_name(rust_lib_name))
 
     rust_metadata = None
@@ -294,7 +294,8 @@ def _rust_library_common(ctx, crate_type):
             rust_metadata_name,
             sibling = rust_lib,
         )
-        rust_metadata_build_output = ctx.actions.declare_file(_rustc_output_name(rust_metadata_name))
+        if output_diagnostics:
+            rust_metadata_build_output = ctx.actions.declare_file(_rustc_output_name(rust_metadata_name))
 
     deps = transform_deps(ctx.attr.deps)
     proc_macro_deps = transform_deps(ctx.attr.proc_macro_deps + get_import_macro_deps(ctx))
@@ -686,6 +687,9 @@ _common_attrs = {
     ),
     "_is_proc_macro_dep_enabled": attr.label(
         default = Label("//:is_proc_macro_dep_enabled"),
+    ),
+    "_output_diagnostics": attr.label(
+        default = Label("//:output_diagnostics"),
     ),
     "_process_wrapper": attr.label(
         doc = "A process wrapper for running rustc on all platforms.",

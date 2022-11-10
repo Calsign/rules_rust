@@ -52,6 +52,11 @@ ErrorFormatInfo = provider(
     fields = {"error_format": "(string) [" + ", ".join(_error_format_values) + "]"},
 )
 
+OutputDiagnosticsInfo = provider(
+    doc = "Save json diagnostics form rustc",
+    fields = {"output_diagnostics": "(bool)"},
+)
+
 ExtraRustcFlagsInfo = provider(
     doc = "Pass each value as an additional flag to non-exec rustc invocations",
     fields = {"extra_rustc_flags": "List[string] Extra flags to pass to rustc in non-exec configuration"},
@@ -863,10 +868,8 @@ def construct_arguments(
         process_wrapper_flags.add("--rustc-quit-on-rmeta", "true")
         if crate_info.rust_metadata_rustc_output:
             process_wrapper_flags.add("--output-file", crate_info.rust_metadata_rustc_output.path)
-    else:
-        if crate_info.rust_lib_rustc_output:
-            process_wrapper_flags.add("--output-file", crate_info.rust_lib_rustc_output.path)
-
+    elif crate_info.rust_lib_rustc_output:
+        process_wrapper_flags.add("--output-file", crate_info.rust_lib_rustc_output.path)
 
     rustc_flags.add("--error-format=" + error_format)
 
@@ -1115,7 +1118,7 @@ def rustc_compile_action(
         build_flags_files = build_flags_files,
         force_all_deps_direct = force_all_deps_direct,
         stamp = stamp,
-        use_json_output = bool(build_metadata),
+        use_json_output = bool(build_metadata) or bool(rust_lib_rustc_output) or bool(rust_metadata_rustc_output),
     )
 
     args_metadata = None
@@ -1853,6 +1856,30 @@ error_format = rule(
     ),
     implementation = _error_format_impl,
     build_setting = config.string(flag = True),
+)
+
+def _output_diagnostics_impl(ctx):
+    """Implementation of the `output_diagnostics` rule
+
+    Args:
+        ctx (ctx): The rule's context object
+
+    Returns:
+        list: A list containing the OutputDiagnosticsInfo provider
+    """
+    return [OutputDiagnosticsInfo(output_diagnostics = ctx.build_setting_value)]
+
+output_diagnostics = rule(
+    doc = (
+        "Setting this flag from the command line with `--@rules_rust//:output_diagnostics` " +
+        "makes rules_rust save rustc json output(suitable for consumption by rust-analyzer) in a file. " +
+        "These are accessible via the " +
+        "`rust_metadata_rustc_output`(for pipelined compilation) and `rust_lib_rustc_output` output groups. " +
+        "You can find these either by using something like `find <dir> -name '*.rustc-output'` or by using " +
+        "`bazel cquery --output=files`."
+    ),
+    implementation = _output_diagnostics_impl,
+    build_setting = config.bool(flag = True),
 )
 
 def _extra_rustc_flags_impl(ctx):
