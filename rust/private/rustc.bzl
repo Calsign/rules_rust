@@ -1213,7 +1213,7 @@ def rustc_compile_action(
             ctx.actions.run(
                 executable = ctx.executable._process_wrapper,
                 inputs = compile_inputs,
-                outputs = [build_metadata, rust_metadata_rustc_output],
+                outputs = [build_metadata] + [x for x in [rust_metadata_rustc_output] if x],
                 env = env,
                 arguments = args_metadata.all,
                 mnemonic = "RustcMetadata",
@@ -1342,7 +1342,8 @@ def rustc_compile_action(
         output_group_info["build_metadata"] = depset([build_metadata])
     if build_metadata:
         output_group_info["build_metadata"] = depset([build_metadata])
-        output_group_info["rust_metadata_rustc_output"] = depset([rust_metadata_rustc_output])
+        if rust_metadata_rustc_output:
+            output_group_info["rust_metadata_rustc_output"] = depset([rust_metadata_rustc_output])
     if rust_lib_rustc_output:
         output_group_info["rust_lib_rustc_output"] = depset([rust_lib_rustc_output])
 
