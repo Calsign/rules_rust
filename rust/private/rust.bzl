@@ -283,7 +283,10 @@ def _rust_library_common(ctx, crate_type):
     rust_lib_build_output = None
     output_diagnostics = ctx.attr._output_diagnostics
     if ctx.attr._process_wrapper and output_diagnostics:
-        rust_lib_build_output = ctx.actions.declare_file(_rustc_output_name(rust_lib_name))
+        rust_lib_build_output = ctx.actions.declare_file(
+            _rustc_output_name(rust_lib_name),
+            sibling = rust_lib,
+        )
 
     rust_metadata = None
     rust_metadata_build_output = None
@@ -295,7 +298,10 @@ def _rust_library_common(ctx, crate_type):
             sibling = rust_lib,
         )
         if output_diagnostics:
-            rust_metadata_build_output = ctx.actions.declare_file(_rustc_output_name(rust_metadata_name))
+            rust_metadata_build_output = ctx.actions.declare_file(
+                _rustc_output_name(rust_metadata_name),
+                sibling = rust_metadata,
+            )
 
     deps = transform_deps(ctx.attr.deps)
     proc_macro_deps = transform_deps(ctx.attr.proc_macro_deps + get_import_macro_deps(ctx))
