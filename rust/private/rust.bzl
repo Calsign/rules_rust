@@ -354,6 +354,21 @@ def _rust_binary_impl(ctx):
     if not crate_root:
         crate_root = crate_root_src(ctx.attr.name, srcs, ctx.attr.crate_type)
 
+    rust_metadata = None
+    rust_metadata_build_output = None
+    output_diagnostics = ctx.attr._output_diagnostics
+
+    if ctx.attr._process_wrapper and output_diagnostics:
+        rust_metadata_name = paths.replace_extension(crate_name + toolchain.binary_ext, ".rmeta.ok")
+        rust_metadata = ctx.actions.declare_file(
+            rust_metadata_name,
+            sibling = output,
+        )
+        rust_metadata_build_output = ctx.actions.declare_file(
+            _rustc_output_name(rust_metadata_name),
+            sibling = rust_metadata,
+        )
+
     return rustc_compile_action(
         ctx = ctx,
         attr = ctx.attr,
@@ -367,6 +382,8 @@ def _rust_binary_impl(ctx):
             proc_macro_deps = depset(proc_macro_deps),
             aliases = ctx.attr.aliases,
             output = output,
+            metadata = rust_metadata,
+            rust_metadata_rustc_output = rust_metadata_build_output,
             edition = get_edition(ctx.attr, toolchain, ctx.label),
             rustc_env = ctx.attr.rustc_env,
             rustc_env_files = ctx.files.rustc_env_files,
@@ -396,6 +413,8 @@ def _rust_test_impl(ctx):
     deps = transform_deps(ctx.attr.deps)
     proc_macro_deps = transform_deps(ctx.attr.proc_macro_deps + get_import_macro_deps(ctx))
 
+    standalone_crate_name = compute_crate_name(ctx.workspace_name, ctx.label, toolchain, ctx.attr.crate_name)
+
     if ctx.attr.crate:
         # Target is building the crate in `test` config
         crate = ctx.attr.crate[rust_common.crate_info] if rust_common.crate_info in ctx.attr.crate else ctx.attr.crate[rust_common.test_crate_info].crate
@@ -408,7 +427,36 @@ def _rust_test_impl(ctx):
                 toolchain.binary_ext,
             ),
         )
+    else:
+        if not crate_root:
+            crate_root_type = "lib" if ctx.attr.use_libtest_harness else "bin"
+            crate_root = crate_root_src(ctx.attr.name, ctx.files.srcs, crate_root_type)
 
+        output_hash = determine_output_hash(crate_root, ctx.label)
+        output = ctx.actions.declare_file(
+            "test-%s/%s%s" % (
+                output_hash,
+                ctx.label.name,
+                toolchain.binary_ext,
+            ),
+        )
+
+    rust_metadata = None
+    rust_metadata_build_output = None
+    output_diagnostics = ctx.attr._output_diagnostics
+
+    if output_diagnostics:
+        rust_metadata_name = paths.replace_extension(standalone_crate_name, ".rmeta.ok")
+        rust_metadata = ctx.actions.declare_file(
+            rust_metadata_name,
+            sibling = output,
+        )
+        rust_metadata_build_output = ctx.actions.declare_file(
+            _rustc_output_name(rust_metadata_name),
+            sibling = rust_metadata,
+        )
+
+    if ctx.attr.crate:
         # Optionally join compile data
         if crate.compile_data:
             compile_data = depset(ctx.files.compile_data, transitive = [crate.compile_data])
@@ -428,6 +476,8 @@ def _rust_test_impl(ctx):
             proc_macro_deps = depset(proc_macro_deps, transitive = [crate.proc_macro_deps]),
             aliases = ctx.attr.aliases,
             output = output,
+            metadata = rust_metadata,
+            rust_metadata_rustc_output = rust_metadata_build_output,
             edition = crate.edition,
             rustc_env = rustc_env,
             rustc_env_files = rustc_env_files,
@@ -437,22 +487,9 @@ def _rust_test_impl(ctx):
             owner = ctx.label,
         )
     else:
-        if not crate_root:
-            crate_root_type = "lib" if ctx.attr.use_libtest_harness else "bin"
-            crate_root = crate_root_src(ctx.attr.name, ctx.files.srcs, crate_root_type)
-
-        output_hash = determine_output_hash(crate_root, ctx.label)
-        output = ctx.actions.declare_file(
-            "test-%s/%s%s" % (
-                output_hash,
-                ctx.label.name,
-                toolchain.binary_ext,
-            ),
-        )
-
         # Target is a standalone crate. Build the test binary as its own crate.
         crate_info = rust_common.create_crate_info(
-            name = compute_crate_name(ctx.workspace_name, ctx.label, toolchain, ctx.attr.crate_name),
+            name = standalone_crate_name,
             type = crate_type,
             root = crate_root,
             srcs = depset(srcs),
@@ -460,6 +497,8 @@ def _rust_test_impl(ctx):
             proc_macro_deps = depset(proc_macro_deps),
             aliases = ctx.attr.aliases,
             output = output,
+            metadata = rust_metadata,
+            rust_metadata_rustc_output = rust_metadata_build_output,
             edition = get_edition(ctx.attr, toolchain, ctx.label),
             rustc_env = ctx.attr.rustc_env,
             rustc_env_files = ctx.files.rustc_env_files,

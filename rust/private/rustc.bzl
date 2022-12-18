@@ -868,6 +868,9 @@ def construct_arguments(
         process_wrapper_flags.add("--rustc-quit-on-rmeta", "true")
         if crate_info.rust_metadata_rustc_output:
             process_wrapper_flags.add("--output-file", crate_info.rust_metadata_rustc_output.path)
+        if crate_info.type in ["bin"]:
+            # Binaries don't produce a .rmeta file, but we still need a marker output
+            process_wrapper_flags.add("--touch-file", crate_info.metadata)
     elif crate_info.rust_lib_rustc_output:
         process_wrapper_flags.add("--output-file", crate_info.rust_lib_rustc_output.path)
 
